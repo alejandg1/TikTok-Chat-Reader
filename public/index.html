@@ -338,6 +338,24 @@
                         <p style="color: #6a737d; text-align: center;">No active streams</p>
                     </div>
                 </div>
+
+                <div class="card" style="margin-top: 24px;">
+                    <h2>Exportar Comentarios</h2>
+                    <div style="margin-bottom: 16px; padding: 12px; background: #f6f8fa; border-radius: 4px;">
+                        <p style="color: #24292e; font-weight: 600; margin-bottom: 4px;">
+                            Comentarios almacenados: <span id="commentCount" style="color: #0366d6;">0</span>
+                        </p>
+                        <p style="color: #586069; font-size: 12px;">
+                            Los comentarios se guardan automáticamente durante el stream
+                        </p>
+                    </div>
+                    <button class="btn btn-primary" onclick="exportCommentsToPDF()" style="width: 100%; margin-bottom: 12px;">
+                        Descargar PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearComments()" style="width: 100%;">
+                        Limpiar Comentarios
+                    </button>
+                </div>
             </div>
 
             <!-- Events Panel -->
@@ -556,6 +574,48 @@
                 container.appendChild(item);
             });
         }
+
+        // Export comments to PDF
+        function exportCommentsToPDF() {
+            window.open('/export-comments', '_blank');
+        }
+
+        // Clear stored comments
+        async function clearComments() {
+            if (!confirm('¿Estás seguro de que quieres limpiar todos los comentarios almacenados?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/clear-comments', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Comentarios limpiados exitosamente');
+                    updateCommentCount();
+                }
+            } catch (error) {
+                console.error('Error clearing comments:', error);
+                alert('Error al limpiar comentarios');
+            }
+        }
+
+        // Update comment count
+        async function updateCommentCount() {
+            try {
+                const response = await fetch('/comments-count');
+                const data = await response.json();
+                document.getElementById('commentCount').textContent = data.count.toLocaleString();
+            } catch (error) {
+                console.error('Error getting comment count:', error);
+            }
+        }
+
+        // Update comment count every 5 seconds
+        setInterval(updateCommentCount, 5000);
+        updateCommentCount(); // Initial update
 
         // Initialize on page load
         connectToBackend();

@@ -223,3 +223,48 @@ connection.on('streamEnd', () => {
         }, 30000);
     }
 })
+
+// Export comments to PDF
+function exportCommentsToPDF() {
+    window.open('/export-comments', '_blank');
+}
+
+// Clear stored comments
+async function clearComments() {
+    if (!confirm('¿Estás seguro de que quieres limpiar todos los comentarios almacenados?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/clear-comments', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Comentarios limpiados exitosamente');
+            updateCommentCount();
+        }
+    } catch (error) {
+        console.error('Error clearing comments:', error);
+        alert('Error al limpiar comentarios');
+    }
+}
+
+// Update comment count
+async function updateCommentCount() {
+    try {
+        const response = await fetch('/comments-count');
+        const data = await response.json();
+        const countElement = $('#commentCount');
+        if (countElement.length) {
+            countElement.text(data.count.toLocaleString());
+        }
+    } catch (error) {
+        console.error('Error getting comment count:', error);
+    }
+}
+
+// Update comment count every 5 seconds
+setInterval(updateCommentCount, 5000);
+updateCommentCount(); // Initial update

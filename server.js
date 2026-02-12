@@ -5,6 +5,7 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { TikTokConnectionWrapper, getGlobalConnectionCount } = require('./connectionWrapper');
 const { clientBlocked } = require('./limiter');
+const htmlPdf = require('html-pdf-node');
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,6 +19,9 @@ const io = new Server(httpServer, {
 
 // Store active streams managed by FastAPI
 const activeStreams = new Map(); // stream_id -> { wrapper, username, metadata, startedAt }
+
+// Store all comments for export
+const storedComments = [];
 
 // ============================================
 // NAMESPACE: /backend (FastAPI Communication)
@@ -90,6 +94,13 @@ backendNamespace.on('connection', (socket) => {
 
             // Forward TikTok events to FastAPI
             wrapper.connection.on('chat', (msg) => {
+                // Store comment for PDF export
+                storedComments.push({
+                    username: msg.uniqueId,
+                    comment: msg.comment,
+                    timestamp: new Date()
+                });
+                
                 socket.emit('tiktok-event', {
                     stream_id,
                     event_type: 'chat',
@@ -281,7 +292,15 @@ io.on('connection', (socket) => {
         // Redirect message events
         tiktokConnectionWrapper.connection.on('roomUser', msg => socket.emit('roomUser', msg));
         tiktokConnectionWrapper.connection.on('member', msg => socket.emit('member', msg));
-        tiktokConnectionWrapper.connection.on('chat', msg => socket.emit('chat', msg));
+        tiktokConnectionWrapper.connection.on('chat', msg => {
+            // Store comment for PDF export
+            storedComments.push({
+                username: msg.uniqueId,
+                comment: msg.comment,
+                timestamp: new Date()
+            });
+            socket.emit('chat', msg);
+        });
         tiktokConnectionWrapper.connection.on('gift', msg => socket.emit('gift', msg));
         tiktokConnectionWrapper.connection.on('social', msg => socket.emit('social', msg));
         tiktokConnectionWrapper.connection.on('like', msg => socket.emit('like', msg));
@@ -305,6 +324,124 @@ io.on('connection', (socket) => {
 setInterval(() => {
     io.emit('statistic', { globalConnectionCount: getGlobalConnectionCount() });
 }, 5000)
+
+// Endpoint to export comments as PDF
+app.get('/export-comments', async (req, res) => {
+    try {
+        // Generate HTML content
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background: #fff;
+                    font-size: 11px;
+                }
+                h1 {
+                    color: #2c3e50;
+                    text-align: center;
+                    font-size: 18px;
+                    margin: 10px 0;
+                    border-bottom: 2px solid #3498db;
+                    padding-bottom: 8px;
+                }
+                .info {
+                    text-align: center;
+                    color: #7f8c8d;
+                    margin-bottom: 15px;
+                    font-size: 10px;
+                }
+                .comment {
+                    background: #fafafa;
+                    margin: 5px 0;
+                    padding: 6px 10px;
+                    border-left: 3px solid #3498db;
+                }
+                .comment:nth-child(even) {
+                    background: #fff;
+                    border-left-color: #e74c3c;
+                }
+                .number {
+                    color: #3498db;
+                    font-weight: bold;
+                    font-size: 9px;
+                    display: inline;
+                }
+                .username {
+                    color: #2c3e50;
+                    font-weight: bold;
+                    font-size: 12px;
+                    display: inline;
+                    margin-left: 5px;
+                }
+                .text {
+                    color: #000;
+                    font-size: 11px;
+                    margin: 3px 0 2px 0;
+                    line-height: 1.3;
+                    word-wrap: break-word;
+                }
+                .timestamp {
+                    color: #95a5a6;
+                    font-size: 8px;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Comentarios del Live</h1>
+            <div class="info">
+                <p><strong>Total:</strong> ${storedComments.length} | <strong>Generado:</strong> ${new Date().toLocaleString('es-ES')}</p>
+            </div>
+            ${storedComments.length === 0 
+                ? '<p style="text-align: center; color: #7f8c8d;">No hay comentarios almacenados.</p>'
+                : storedComments.map((comment, index) => `
+                <div class="comment">
+                    <span class="number">#${index + 1}</span>
+                    <span class="username">${comment.username}</span>
+                    <div class="text">${comment.comment || '[sin texto]'}</div>
+                    <div class="timestamp">${comment.timestamp.toLocaleString('es-ES')}</div>
+                </div>
+            `).join('')}
+        </body>
+        </html>
+        `;
+
+        const options = { 
+            format: 'A4',
+            margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+        };
+        
+        const file = { content: htmlContent };
+        
+        // Generate PDF from HTML
+        const pdfBuffer = await htmlPdf.generatePdf(file, options);
+        
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=comentarios-tiktok-${Date.now()}.pdf`);
+        
+        // Send PDF
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error('Error generating HTML PDF:', error);
+        res.status(500).send('Error generating PDF');
+    }
+});
+
+// Endpoint to clear stored comments
+app.post('/clear-comments', (req, res) => {
+    storedComments.length = 0;
+    res.json({ success: true, message: 'Comments cleared' });
+});
+
+// Endpoint to get comment count
+app.get('/comments-count', (req, res) => {
+    res.json({ count: storedComments.length });
+});
 
 // Serve frontend files
 app.use(express.static('public'));

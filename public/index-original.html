@@ -47,6 +47,18 @@
         <a href="#" onclick="generateOverlay()">Generate Overlay URL</a>
     </div>
 
+    <div class="inputFields" style="margin-top: 20px; padding: 15px; background: #2d2d2d; border-radius: 5px;">
+        <h3 style="margin-top: 0; color: #e3e5eb;">Exportar Comentarios</h3>
+        <p style="margin: 10px 0;">
+            <span style="color: #aaa;">Comentarios almacenados:</span> 
+            <strong id="commentCount" style="color: #4CAF50; font-size: 1.2em;">0</strong>
+        </p>
+        <input type="button" value="Descargar PDF" onclick="exportCommentsToPDF()" 
+               style="background: #4CAF50; margin-right: 10px;">
+        <input type="button" value="Limpiar Comentarios" onclick="clearComments()" 
+               style="background: #f44336;">
+    </div>
+
     <table class="splitstatetable">
         <tr>
             <td>
