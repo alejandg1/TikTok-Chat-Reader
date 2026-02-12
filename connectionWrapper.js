@@ -105,8 +105,11 @@ class TikTokConnectionWrapper extends EventEmitter {
         this.clientDisconnected = true;
         this.reconnectEnabled = false;
 
-        if (this.connection.getState().isConnected) {
+        try {
             this.connection.disconnect();
+        } catch (error) {
+            // Already disconnected or connection not established
+            this.log(`Disconnect error (ignored): ${error.message}`);
         }
     }
 
